@@ -56,29 +56,26 @@ WHAT TO FIX:
 - Missing "Occupants could not be determined." where appropriate
 - Do NOT invent details or change facts`;
 
-async function callGemini(prompt, apiKey, jsonMode) {
-  const body = {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: {
+async function callGroq(systemPrompt, userPrompt, apiKey) {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
       temperature: 0.1,
-      maxOutputTokens: 8192,
-    }
-  };
-  if (jsonMode) {
-    body.generationConfig.responseMimeType = 'application/json';
-  }
-
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    }
-  );
+      max_tokens: 8192,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ]
+    })
+  });
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message || 'Gemini API error');
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  if (data.error) throw new Error(data.error.message || 'Groq API error');
+  const text = data.choices?.[0]?.message?.content || '';
   if (!text) throw new Error('Empty response from AI');
   return text;
 }
@@ -89,22 +86,22 @@ export default async function handler(req, res) {
   const { dayText } = req.body;
   if (!dayText) return res.status(400).json({ error: 'No log text provided' });
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'API key not configured' });
 
   try {
-    // Call 1: Get the cleaned log as plain text only
-    const cleanedLog = await callGemini(
-      `${QC_PROMPT}\n\nReturn ONLY the fully corrected activity log as plain text. Do not include any commentary, labels, or explanation — just the corrected log starting with the header block.\n\nLog to QC:\n\n${dayText}`,
-      apiKey,
-      false
+    // Call 1: Get the cleaned log as plain text
+    const cleanedLog = await callGroq(
+      QC_PROMPT,
+      `Return ONLY the fully corrected activity log as plain text. Do not include any commentary, labels, or explanation — just the corrected log starting with the header block.\n\nLog to QC:\n\n${dayText}`,
+      apiKey
     );
 
-    // Call 2: Get flags as JSON only
-    const flagsRaw = await callGemini(
-      `${QC_PROMPT}\n\nYou have just QC'd this surveillance log. Now return ONLY a JSON array of issues and corrections you made. Each item: {"type":"error|warning|info","text":"description"}. Return only the JSON array, nothing else.\n\nLog that was QC'd:\n\n${dayText}`,
-      apiKey,
-      true
+    // Call 2: Get flags as a JSON array
+    const flagsRaw = await callGroq(
+      QC_PROMPT,
+      `You have just QC'd this surveillance log. Now return ONLY a JSON array of issues and corrections you made. Each item must have this format: {"type":"error|warning|info","text":"description"}. Return only the JSON array starting with [ and ending with ], nothing else.\n\nLog that was QC'd:\n\n${dayText}`,
+      apiKey
     );
 
     let flags = [];
