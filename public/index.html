@@ -160,8 +160,8 @@ async function runQC() {
     setProgress(i + 1, days.length);
     // Wait between days to avoid rate limits
     if (i > 0) {
-      document.getElementById('progressLabel').textContent = 'Pausing briefly before next day...';
-      await new Promise(r => setTimeout(r, 10000));
+      document.getElementById('progressLabel').textContent = `Pausing before day ${i + 1} of ${days.length} — please wait...`;
+      await new Promise(r => setTimeout(r, 65000));
     }
     try {
       const res = await fetch('/api/qc', {
