@@ -10,7 +10,6 @@ QC: [name]
 
 ENTRY FORMAT RULES:
 - Every entry: HH:MM:SS - [Description ending with a period.]
-- Use an en dash between timestamp and text in the output
 - All entries must be past tense and third person
 - One event per entry
 - Every day starts with: 00:00:00 - Surveillance was initiated.
@@ -43,77 +42,61 @@ STANDARD PHRASES:
 
 WHAT TO FIX:
 - Grammar, spelling, punctuation
-- Hyphens to en dashes in timestamps (output only)
 - Inconsistent UI numbering
 - Missing start/end entries
 - Missing periods at end of entries
 - Non-neutral language
 - Do NOT invent details or change facts`;
 
-function clean(str) {
-  var s = String(str);
-  var result = '';
-  for (var i = 0; i < s.length; i++) {
-    var c = s.charCodeAt(i);
-    if (c === 8211 || c === 8212) result += '-';
-    else if (c === 8216 || c === 8217) result += "'";
-    else if (c === 8220 || c === 8221) result += '"';
-    else if (c === 160) result += ' ';
-    else if (c <= 255) result += s[i];
-    else result += s[i];
-  }
-  return result;
-}
-
 async function callGroq(system, user, apiKey) {
   const payload = {
-    model: 'llama-3.3-70b-versatile',
+    model: "llama-3.3-70b-versatile",
     temperature: 0.1,
     max_tokens: 8000,
     messages: [
-      { role: 'system', content: clean(system) },
-      { role: 'user',   content: clean(user)   }
+      { role: "system", content: system },
+      { role: "user", content: user }
     ]
   };
 
-  const bodyBuf = Buffer.from(JSON.stringify(payload), 'utf8');
+  // JSON.stringify automatically escapes all unicode as \uXXXX - safe ASCII output
+  const body = JSON.stringify(payload);
 
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Authorization': 'Bearer ' + apiKey,
-      'Content-Length': String(bodyBuf.length)
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + apiKey
     },
-    body: bodyBuf
+    body: body
   });
 
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message || 'Groq API error');
-  const text = data.choices?.[0]?.message?.content || '';
-  if (!text) throw new Error('Empty response from AI');
+  if (data.error) throw new Error(data.error.message || "Groq API error");
+  const text = data.choices?.[0]?.message?.content || "";
+  if (!text) throw new Error("Empty response from AI");
   return text;
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const { dayText } = req.body;
-  if (!dayText) return res.status(400).json({ error: 'No log text provided' });
+  if (!dayText) return res.status(400).json({ error: "No log text provided" });
 
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'API key not configured' });
+  if (!apiKey) return res.status(500).json({ error: "API key not configured" });
 
   try {
     const cleanedLog = await callGroq(
       QC_PROMPT,
-      'Return ONLY the fully corrected activity log as plain text. No commentary, no labels, just the corrected log starting with the header block.\n\nLog to QC:\n\n' + dayText,
+      "Return ONLY the fully corrected activity log as plain text. No commentary, no labels, just the corrected log starting with the header block.\n\nLog to QC:\n\n" + dayText,
       apiKey
     );
 
     const flagsRaw = await callGroq(
       QC_PROMPT,
-      'You just QC\'d this surveillance log. Return ONLY a JSON array of issues and corrections. Format: [{"type":"error|warning|info","text":"description"}]. Return only the array, nothing else.\n\nLog QC\'d:\n\n' + dayText,
+      "You just QC'd this surveillance log. Return ONLY a JSON array of issues and corrections. Format: [{\"type\":\"error|warning|info\",\"text\":\"description\"}]. Return only the array, nothing else.\n\nLog QC'd:\n\n" + dayText,
       apiKey
     );
 
@@ -122,12 +105,12 @@ export default async function handler(req, res) {
       const match = flagsRaw.match(/\[[\s\S]*\]/);
       if (match) flags = JSON.parse(match[0]);
     } catch (e) {
-      flags = [{ type: 'info', text: 'Could not parse flags for this day.' }];
+      flags = [{ type: "info", text: "Could not parse flags for this day." }];
     }
 
     return res.status(200).json({ cleaned_log: cleanedLog.trim(), flags });
 
   } catch (err) {
-    return res.status(500).json({ error: err.message || 'Something went wrong' });
+    return res.status(500).json({ error: err.message || "Something went wrong" });
   }
 }
