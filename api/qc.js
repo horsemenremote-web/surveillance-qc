@@ -56,6 +56,15 @@ WHAT TO FIX:
 - Missing "Occupants could not be determined." where appropriate
 - Do NOT invent details or change facts`;
 
+function sanitize(text) {
+  // Replace special unicode characters that some APIs can't handle
+  return text
+    .replace(/–/g, '-')  // en dash
+    .replace(/—/g, '--') // em dash
+    .replace(/‘|’/g, "'") // smart single quotes
+    .replace(/“|”/g, '"'); // smart double quotes
+}
+
 async function callGroq(systemPrompt, userPrompt, apiKey) {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -68,8 +77,8 @@ async function callGroq(systemPrompt, userPrompt, apiKey) {
       temperature: 0.1,
       max_tokens: 8192,
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
+        { role: 'system', content: sanitize(systemPrompt) },
+        { role: 'user', content: sanitize(userPrompt) }
       ]
     })
   });
