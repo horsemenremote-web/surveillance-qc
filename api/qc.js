@@ -1,6 +1,6 @@
 const QC_PROMPT = `You are a Quality Control editor for a private investigation agency specializing in remote surveillance activity logs. You will receive a SINGLE DAY of a surveillance report and must QC it thoroughly.
 
-REPORT STRUCTURE — the day has this header block followed by entries:
+REPORT STRUCTURE:
 Date of Surveillance: MM/DD/YYYY
 Total Video: HH:MM:SS
 Claimant Video: HH:MM:SS
@@ -9,14 +9,12 @@ Investigator: [name]
 QC: [name]
 
 ENTRY FORMAT RULES:
-- Every entry: HH:MM:SS – [Description ending with a period.]
-- Use an en dash (–) not a hyphen (-) between timestamp and text
+- Every entry: HH:MM:SS - [Description ending with a period.]
+- Use an en dash between timestamp and text in the output
 - All entries must be past tense and third person
-- One event per entry — split combined events if needed
-- Consolidate overly wordy entries without losing factual detail
-- Every day starts with: 00:00:00 – Surveillance was initiated.
-- Every day ends with: 23:59:59 – Surveillance ended for the day.
-- Exception: deployment/recovery days may differ — preserve those times as-is
+- One event per entry
+- Every day starts with: 00:00:00 - Surveillance was initiated.
+- Every day ends with: 23:59:59 - Surveillance ended for the day.
 - Camera pause: "Surveillance paused due to battery change."
 - Technical glitch: "Due to a technical error, video was interrupted to resume at HH:MM:SS."
 
@@ -25,21 +23,19 @@ PEOPLE:
 - Number repeated unknowns: UI Male 1, UI Male 2 etc.
 - First mention of a numbered UI: "This individual will be referred to as UI Male 1 for the remainder of the report."
 - Only use "the claimant" when identity is confirmed on camera
-- Never assume or guess identity
 
 VEHICLES:
-- Always include: color + type (SUV, sedan, pickup truck) + make/model if visible
+- Always include: color, type, make/model if visible
 - Low light: "Due to low lighting, the make/model and occupants could not be determined."
 - Inside garage: "Identity could not be determined due to the vehicle being parked inside the garage."
-- Obstructed: "Due to an obstructed view, occupants could not be identified."
 
 CLAIMANT VIDEO:
 - Confirmed claimant entries end with: (VIDEO OBTAINED)
-- Describe physical activity in detail: bending, lifting, carrying, stooping, reaching, pushing, pulling, getting in/out of vehicles
-- Never say an action violates restrictions — describe movements neutrally only
-- Never use: "appeared to be in pain," "violated restrictions," "should not be doing this"
+- Describe physical activity in detail: bending, lifting, carrying, stooping, reaching, pushing, pulling
+- Never say an action violates restrictions
+- Never use: "appeared to be in pain," "violated restrictions"
 
-STANDARD APPROVED PHRASES:
+STANDARD PHRASES:
 - "conducted unknown activities"
 - "departed the area as the sole occupant"
 - "Occupants could not be determined."
@@ -47,41 +43,44 @@ STANDARD APPROVED PHRASES:
 
 WHAT TO FIX:
 - Grammar, spelling, punctuation
-- Hyphen to en dash in all timestamps
+- Hyphens to en dashes in timestamps (output only)
 - Inconsistent UI numbering
 - Missing start/end entries
 - Missing periods at end of entries
-- Non-neutral or interpretive language
-- Run-on entries that should be split
-- Missing "Occupants could not be determined." where appropriate
+- Non-neutral language
 - Do NOT invent details or change facts`;
 
-function sanitize(text) {
-  // Replace special unicode characters that some APIs can't handle
-  return text
-    .replace(/–/g, '-')  // en dash
-    .replace(/—/g, '--') // em dash
-    .replace(/‘|’/g, "'") // smart single quotes
-    .replace(/“|”/g, '"'); // smart double quotes
+function clean(str) {
+  return String(str)
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u00A0]/g, ' ');
 }
 
-async function callGroq(systemPrompt, userPrompt, apiKey) {
+async function callGroq(system, user, apiKey) {
+  const payload = {
+    model: 'llama-3.3-70b-versatile',
+    temperature: 0.1,
+    max_tokens: 8000,
+    messages: [
+      { role: 'system', content: clean(system) },
+      { role: 'user',   content: clean(user)   }
+    ]
+  };
+
+  const bodyBuf = Buffer.from(JSON.stringify(payload), 'utf8');
+
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
+      'Content-Type': 'application/json; charset=utf-8',
+      'Authorization': 'Bearer ' + apiKey,
+      'Content-Length': String(bodyBuf.length)
     },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0.1,
-      max_tokens: 8192,
-      messages: [
-        { role: 'system', content: sanitize(systemPrompt) },
-        { role: 'user', content: sanitize(userPrompt) }
-      ]
-    })
+    body: bodyBuf
   });
+
   const data = await res.json();
   if (data.error) throw new Error(data.error.message || 'Groq API error');
   const text = data.choices?.[0]?.message?.content || '';
@@ -99,17 +98,15 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: 'API key not configured' });
 
   try {
-    // Call 1: Get the cleaned log as plain text
     const cleanedLog = await callGroq(
       QC_PROMPT,
-      `Return ONLY the fully corrected activity log as plain text. Do not include any commentary, labels, or explanation — just the corrected log starting with the header block.\n\nLog to QC:\n\n${dayText}`,
+      'Return ONLY the fully corrected activity log as plain text. No commentary, no labels, just the corrected log starting with the header block.\n\nLog to QC:\n\n' + dayText,
       apiKey
     );
 
-    // Call 2: Get flags as a JSON array
     const flagsRaw = await callGroq(
       QC_PROMPT,
-      `You have just QC'd this surveillance log. Now return ONLY a JSON array of issues and corrections you made. Each item must have this format: {"type":"error|warning|info","text":"description"}. Return only the JSON array starting with [ and ending with ], nothing else.\n\nLog that was QC'd:\n\n${dayText}`,
+      'You just QC\'d this surveillance log. Return ONLY a JSON array of issues and corrections. Format: [{"type":"error|warning|info","text":"description"}]. Return only the array, nothing else.\n\nLog QC\'d:\n\n' + dayText,
       apiKey
     );
 
