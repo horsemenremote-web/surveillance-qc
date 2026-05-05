@@ -1,3 +1,5 @@
+import https from 'https';
+
 const QC_PROMPT = `You are a Quality Control editor for a private investigation agency specializing in remote surveillance activity logs. You will receive a SINGLE DAY of a surveillance report and must QC it thoroughly.
 
 REPORT STRUCTURE:
@@ -47,59 +49,74 @@ WHAT TO FIX:
 - Non-neutral language
 - Do NOT invent details or change facts`;
 
-// Escape ALL non-ASCII characters so the JSON body is pure ASCII
-function safeJSON(obj) {
-  return JSON.stringify(obj).replace(/[\u0080-\uffff]/g, function(c) {
-    return '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4);
+function httpsPost(hostname, path, apiKey, payload) {
+  return new Promise((resolve, reject) => {
+    // Use Buffer with utf8 encoding - bypasses fetch ByteString restriction entirely
+    const body = Buffer.from(JSON.stringify(payload), 'utf8');
+    const options = {
+      hostname: hostname,
+      path: path,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey,
+        'Content-Length': body.length
+      }
+    };
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch (e) { reject(new Error('Could not parse API response')); }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
   });
 }
 
 async function callGroq(system, user, apiKey) {
-  const body = safeJSON({
-    model: "llama-3.3-70b-versatile",
-    temperature: 0.1,
-    max_tokens: 8000,
-    messages: [
-      { role: "system", content: system },
-      { role: "user",   content: user   }
-    ]
-  });
-
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + apiKey
-    },
-    body: body
-  });
-
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message || "Groq API error");
-  const text = data.choices?.[0]?.message?.content || "";
-  if (!text) throw new Error("Empty response from AI");
+  const data = await httpsPost(
+    'api.groq.com',
+    '/openai/v1/chat/completions',
+    apiKey,
+    {
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.1,
+      max_tokens: 8000,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user }
+      ]
+    }
+  );
+  if (data.error) throw new Error(data.error.message || 'Groq API error');
+  const text = data.choices?.[0]?.message?.content || '';
+  if (!text) throw new Error('Empty response from AI');
   return text;
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { dayText } = req.body;
-  if (!dayText) return res.status(400).json({ error: "No log text provided" });
+  if (!dayText) return res.status(400).json({ error: 'No log text provided' });
 
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "API key not configured" });
+  if (!apiKey) return res.status(500).json({ error: 'API key not configured' });
 
   try {
     const cleanedLog = await callGroq(
       QC_PROMPT,
-      "Return ONLY the fully corrected activity log as plain text. No commentary, no labels, just the corrected log starting with the header block.\n\nLog to QC:\n\n" + dayText,
+      'Return ONLY the fully corrected activity log as plain text. No commentary, no labels, just the corrected log starting with the header block.\n\nLog to QC:\n\n' + dayText,
       apiKey
     );
 
     const flagsRaw = await callGroq(
       QC_PROMPT,
-      "You just QC'd this surveillance log. Return ONLY a JSON array of issues and corrections. Format: [{\"type\":\"error|warning|info\",\"text\":\"description\"}]. Return only the array, nothing else.\n\nLog:\n\n" + dayText,
+      'You just QC\'d this surveillance log. Return ONLY a JSON array of issues and corrections. Format: [{"type":"error|warning|info","text":"description"}]. Return only the array, nothing else.\n\nLog:\n\n' + dayText,
       apiKey
     );
 
@@ -108,12 +125,12 @@ export default async function handler(req, res) {
       const match = flagsRaw.match(/\[[\s\S]*\]/);
       if (match) flags = JSON.parse(match[0]);
     } catch (e) {
-      flags = [{ type: "info", text: "Could not parse flags for this day." }];
+      flags = [{ type: 'info', text: 'Could not parse flags for this day.' }];
     }
 
     return res.status(200).json({ cleaned_log: cleanedLog.trim(), flags });
 
   } catch (err) {
-    return res.status(500).json({ error: err.message || "Something went wrong" });
+    return res.status(500).json({ error: err.message || 'Something went wrong' });
   }
 }
