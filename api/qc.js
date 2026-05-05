@@ -51,11 +51,18 @@ WHAT TO FIX:
 - Do NOT invent details or change facts`;
 
 function clean(str) {
-  return String(str)
-    .replace(/[\u2013\u2014]/g, '-')
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/[\u201C\u201D]/g, '"')
-    .replace(/[\u00A0]/g, ' ');
+  var s = String(str);
+  var result = '';
+  for (var i = 0; i < s.length; i++) {
+    var c = s.charCodeAt(i);
+    if (c === 8211 || c === 8212) result += '-';
+    else if (c === 8216 || c === 8217) result += "'";
+    else if (c === 8220 || c === 8221) result += '"';
+    else if (c === 160) result += ' ';
+    else if (c <= 255) result += s[i];
+    else result += s[i];
+  }
+  return result;
 }
 
 async function callGroq(system, user, apiKey) {
