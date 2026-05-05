@@ -14,31 +14,30 @@ ENTRY FORMAT RULES:
 - One event per entry
 - Every day starts with: 00:00:00 - Surveillance was initiated.
 - Every day ends with: 23:59:59 - Surveillance ended for the day.
-- Camera pause: "Surveillance paused due to battery change."
-- Technical glitch: "Due to a technical error, video was interrupted to resume at HH:MM:SS."
+- Camera pause: Surveillance paused due to battery change.
+- Technical glitch: Due to a technical error, video was interrupted to resume at HH:MM:SS.
 
 PEOPLE:
 - Unknown individuals: UI Male, UI Female, UI Individual
 - Number repeated unknowns: UI Male 1, UI Male 2 etc.
-- First mention of a numbered UI: "This individual will be referred to as UI Male 1 for the remainder of the report."
-- Only use "the claimant" when identity is confirmed on camera
+- First mention of a numbered UI: This individual will be referred to as UI Male 1 for the remainder of the report.
+- Only use the claimant when identity is confirmed on camera
 
 VEHICLES:
 - Always include: color, type, make/model if visible
-- Low light: "Due to low lighting, the make/model and occupants could not be determined."
-- Inside garage: "Identity could not be determined due to the vehicle being parked inside the garage."
+- Low light: Due to low lighting, the make/model and occupants could not be determined.
+- Inside garage: Identity could not be determined due to the vehicle being parked inside the garage.
 
 CLAIMANT VIDEO:
 - Confirmed claimant entries end with: (VIDEO OBTAINED)
 - Describe physical activity in detail: bending, lifting, carrying, stooping, reaching, pushing, pulling
 - Never say an action violates restrictions
-- Never use: "appeared to be in pain," "violated restrictions"
 
 STANDARD PHRASES:
-- "conducted unknown activities"
-- "departed the area as the sole occupant"
-- "Occupants could not be determined."
-- "retreated indoors" / "walked out of view"
+- conducted unknown activities
+- departed the area as the sole occupant
+- Occupants could not be determined.
+- retreated indoors / walked out of view
 
 WHAT TO FIX:
 - Grammar, spelling, punctuation
@@ -48,19 +47,23 @@ WHAT TO FIX:
 - Non-neutral language
 - Do NOT invent details or change facts`;
 
+// Escape ALL non-ASCII characters so the JSON body is pure ASCII
+function safeJSON(obj) {
+  return JSON.stringify(obj).replace(/[\u0080-\uffff]/g, function(c) {
+    return '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4);
+  });
+}
+
 async function callGroq(system, user, apiKey) {
-  const payload = {
+  const body = safeJSON({
     model: "llama-3.3-70b-versatile",
     temperature: 0.1,
     max_tokens: 8000,
     messages: [
       { role: "system", content: system },
-      { role: "user", content: user }
+      { role: "user",   content: user   }
     ]
-  };
-
-  // JSON.stringify automatically escapes all unicode as \uXXXX - safe ASCII output
-  const body = JSON.stringify(payload);
+  });
 
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -96,7 +99,7 @@ export default async function handler(req, res) {
 
     const flagsRaw = await callGroq(
       QC_PROMPT,
-      "You just QC'd this surveillance log. Return ONLY a JSON array of issues and corrections. Format: [{\"type\":\"error|warning|info\",\"text\":\"description\"}]. Return only the array, nothing else.\n\nLog QC'd:\n\n" + dayText,
+      "You just QC'd this surveillance log. Return ONLY a JSON array of issues and corrections. Format: [{\"type\":\"error|warning|info\",\"text\":\"description\"}]. Return only the array, nothing else.\n\nLog:\n\n" + dayText,
       apiKey
     );
 
