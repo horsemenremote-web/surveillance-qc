@@ -125,8 +125,16 @@ function getDate(text) {
   return m ? m[1] : null;
 }
 
+function sanitizeText(str) {
+  return str
+    .replace(/[–—]/g, '-')
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[ ]/g, ' ');
+}
+
 async function runQC() {
-  const raw = document.getElementById('rawLog').value.trim();
+  const raw = sanitizeText(document.getElementById('rawLog').value.trim());
   if (!raw) return;
   document.getElementById('runBtn').disabled = true;
   document.getElementById('results').style.display = 'none';
