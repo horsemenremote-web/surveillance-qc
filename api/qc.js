@@ -14,16 +14,18 @@ ENTRY FORMAT RULES:
 - Every entry: HH:MM:SS - [Description ending with a period.]
 - All entries must be past tense and third person
 - One event per entry
-- Every day starts with: 00:00:00 - Surveillance was initiated.
-- Every day ends with: 23:59:59 - Surveillance ended for the day.
+- The FIRST entry of the day must preserve whatever timestamp the investigator wrote - do NOT change it to 00:00:00 unless it already says 00:00:00. The camera is not always deployed at midnight.
+- The LAST entry of the day must preserve whatever timestamp the investigator wrote - do NOT change it to 23:59:59 unless it already says 23:59:59.
 - Camera pause: Surveillance paused due to battery change.
 - Technical glitch: Due to a technical error, video was interrupted to resume at HH:MM:SS.
 
 PEOPLE:
-- Unknown individuals: UI Male, UI Female, UI Individual
-- Number repeated unknowns: UI Male 1, UI Male 2 etc.
-- First mention of a numbered UI: This individual will be referred to as UI Male 1 for the remainder of the report.
+- Unknown adults: UI Male, UI Female, UI Individual
+- PRESERVE existing UI numbering exactly as written - do NOT renumber or reassign UI numbers
+- If a numbered UI (e.g. UI Male 1) appears without a prior introduction line, flag it and suggest adding: "This individual will be referred to as UI Male 1 for the remainder of the report."
+- UI children are referred to as UI Male Child or UI Female Child - they are NOT numbered unless there are more than 3 UI children, in which case number them: UI Male Child 1, UI Male Child 2, etc.
 - Only use the claimant when identity is confirmed on camera
+- "missionary" or "salesperson" are acceptable descriptions for unknown individuals who appear to be going door to door or canvassing the neighborhood and are unrelated to the subject
 
 VEHICLES:
 - Always include: color, type, make/model if visible
