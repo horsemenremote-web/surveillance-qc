@@ -58,9 +58,8 @@ function httpsPost(hostname, path, apiKey, payload) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + apiKey,
-        'HTTP-Referer': 'https://surveillance-qc.vercel.app',
-        'X-Title': 'Surveillance QC Tool',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
         'Content-Length': body.length
       }
     };
@@ -78,23 +77,20 @@ function httpsPost(hostname, path, apiKey, payload) {
   });
 }
 
-async function callAI(system, user, apiKey) {
+async function callClaude(system, user, apiKey) {
   const data = await httpsPost(
-    'openrouter.ai',
-    '/api/v1/chat/completions',
+    'api.anthropic.com',
+    '/v1/messages',
     apiKey,
     {
-      model: 'meta-llama/llama-3.3-70b-instruct:free',
-      temperature: 0.1,
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 8000,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user }
-      ]
+      system: system,
+      messages: [{ role: 'user', content: user }]
     }
   );
-  if (data.error) throw new Error(data.error.message || 'API error');
-  const text = data.choices?.[0]?.message?.content || '';
+  if (data.error) throw new Error(data.error.message || 'Anthropic API error');
+  const text = data.content?.[0]?.text || '';
   if (!text) throw new Error('Empty response from AI');
   return text;
 }
@@ -105,17 +101,17 @@ export default async function handler(req, res) {
   const { dayText } = req.body;
   if (!dayText) return res.status(400).json({ error: 'No log text provided' });
 
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'API key not configured' });
 
   try {
-    const cleanedLog = await callAI(
+    const cleanedLog = await callClaude(
       QC_PROMPT,
       'Return ONLY the fully corrected activity log as plain text. No commentary, no labels, just the corrected log starting with the header block.\n\nLog to QC:\n\n' + dayText,
       apiKey
     );
 
-    const flagsRaw = await callAI(
+    const flagsRaw = await callClaude(
       QC_PROMPT,
       'You just QC\'d this surveillance log. Return ONLY a JSON array of issues and corrections. Format: [{"type":"error|warning|info","text":"description"}]. Return only the array, nothing else.\n\nLog:\n\n' + dayText,
       apiKey
