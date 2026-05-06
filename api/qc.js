@@ -51,7 +51,6 @@ WHAT TO FIX:
 
 function httpsPost(hostname, path, apiKey, payload) {
   return new Promise((resolve, reject) => {
-    // Use Buffer with utf8 encoding - bypasses fetch ByteString restriction entirely
     const body = Buffer.from(JSON.stringify(payload), 'utf8');
     const options = {
       hostname: hostname,
@@ -60,6 +59,8 @@ function httpsPost(hostname, path, apiKey, payload) {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + apiKey,
+        'HTTP-Referer': 'https://surveillance-qc.vercel.app',
+        'X-Title': 'Surveillance QC Tool',
         'Content-Length': body.length
       }
     };
@@ -77,13 +78,13 @@ function httpsPost(hostname, path, apiKey, payload) {
   });
 }
 
-async function callGroq(system, user, apiKey) {
+async function callAI(system, user, apiKey) {
   const data = await httpsPost(
-    'api.groq.com',
-    '/openai/v1/chat/completions',
+    'openrouter.ai',
+    '/api/v1/chat/completions',
     apiKey,
     {
-      model: 'llama-3.3-70b-versatile',
+      model: 'meta-llama/llama-3.3-70b-instruct:free',
       temperature: 0.1,
       max_tokens: 8000,
       messages: [
@@ -92,7 +93,7 @@ async function callGroq(system, user, apiKey) {
       ]
     }
   );
-  if (data.error) throw new Error(data.error.message || 'Groq API error');
+  if (data.error) throw new Error(data.error.message || 'API error');
   const text = data.choices?.[0]?.message?.content || '';
   if (!text) throw new Error('Empty response from AI');
   return text;
@@ -104,17 +105,17 @@ export default async function handler(req, res) {
   const { dayText } = req.body;
   if (!dayText) return res.status(400).json({ error: 'No log text provided' });
 
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'API key not configured' });
 
   try {
-    const cleanedLog = await callGroq(
+    const cleanedLog = await callAI(
       QC_PROMPT,
       'Return ONLY the fully corrected activity log as plain text. No commentary, no labels, just the corrected log starting with the header block.\n\nLog to QC:\n\n' + dayText,
       apiKey
     );
 
-    const flagsRaw = await callGroq(
+    const flagsRaw = await callAI(
       QC_PROMPT,
       'You just QC\'d this surveillance log. Return ONLY a JSON array of issues and corrections. Format: [{"type":"error|warning|info","text":"description"}]. Return only the array, nothing else.\n\nLog:\n\n' + dayText,
       apiKey
