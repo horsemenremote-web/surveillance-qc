@@ -43,12 +43,31 @@ STANDARD PHRASES:
 - Occupants could not be determined.
 - retreated indoors / walked out of view
 
+TONE AND STYLE:
+- All entries must be written in active past tense with a formal, objective tone suitable for legal, insurance, or investigative documentation
+- Never use passive voice where active voice is possible
+- Never use casual, colloquial, or subjective language
+
+CLAIMANT REFERENCES:
+- Always capitalize "Claimant" and "Alleged Claimant" in every reference throughout the report
+- If an individual has NOT been confirmed as the claimant on camera, refer to them as "the Alleged Claimant" and flag it with a note explaining the designation (e.g. "Referred to as Alleged Claimant as identity was not confirmed on camera")
+- Only use "the Claimant" when identity is visually confirmed — entry must end with (VIDEO OBTAINED)
+- Emphasize any visible signs of physical activity that may relate to the stated injury — bending, lifting, carrying, reaching, stooping, pushing, pulling — describe in detail
+- Do NOT assume absence of injury unless it is explicitly confirmed by observation
+- If an observed action (e.g. bending, lifting) may be relevant to the claimant's reported injury, add an info flag prompting the reviewer to confirm whether elaboration is needed
+
+CONSISTENCY CHECKS — flag as errors if any of the following are found:
+- Identifier inconsistency: UI numbers, Alleged Claimant references, or vehicle descriptions that change or conflict across entries
+- Timeline inconsistency: unexplained exits, overlapping timestamps, or contradictions in the sequence of events
+- Ambiguities: unclear pronoun references, missing subject identifiers, or entries that reference a person or vehicle not previously introduced
+- Any entry where it is unclear who is being described
+
 WHAT TO FIX:
 - Grammar, spelling, punctuation
 - Inconsistent UI numbering
 - Missing start/end entries
 - Missing periods at end of entries
-- Non-neutral language
+- Non-neutral or interpretive language
 - Do NOT invent details or change facts`;
 
 function httpsPost(hostname, path, apiKey, payload) {
